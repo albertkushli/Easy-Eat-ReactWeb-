@@ -191,7 +191,7 @@ export default function HomeCustomer() {
                 <div key={i} className="hc-visit-item">
                   <div className="hc-visit-item__dot" />
                   <div className="hc-visit-item__info">
-                    <span className="hc-visit-item__name">{v.restaurant_name || 'Restaurante'}</span>
+                    <span className="hc-visit-item__name">{v.restaurant_id?.profile?.name || v.restaurant_name || 'Restaurante'}</span>
                     <span className="hc-visit-item__date">{new Date(v.date || v.createdAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                   </div>
                   {v.pointsEarned && (
