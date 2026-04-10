@@ -150,10 +150,10 @@ export default function HomeEmployee() {
             {visits.length > 0 ? visits.map((v, i) => (
               <div key={i} className="he-visit-row">
                 <div className="he-visit-row__avatar">
-                  {v.customer_name?.[0]?.toUpperCase() || <User size={16} />}
+                  {(v.customer_id?.name || v.customer_name)?.[0]?.toUpperCase() || <User size={16} />}
                 </div>
                 <div className="he-visit-row__info">
-                  <span className="he-visit-row__name">{v.customer_name || 'Cliente'}</span>
+                  <span className="he-visit-row__name">{v.customer_id?.name || v.customer_name || 'Cliente'}</span>
                   <span className="he-visit-row__date">
                     <Clock size={12} />
                     {new Date(v.date || v.createdAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
