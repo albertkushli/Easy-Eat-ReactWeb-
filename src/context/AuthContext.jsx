@@ -59,13 +59,14 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (email, password, userType = 'customer') => {
     try {
-      const endpoint = userType === 'customer' ? '/auth/customer/login' : '/auth/employee/login';
-      const res = await axios.post(`${API_BASE}${endpoint}`, { email, password }, {
+      const res = await axios.post(`${API_BASE}/auth/login`, { email, password, role: userType }, {
         withCredentials: true
       });
 
       if (res.status === 200) {
-        const { accessToken, user } = res.data;
+        const { accessToken } = res.data;
+        const userPayload = res.data.customer || res.data.employee || res.data.admin;
+        const user = userPayload;
         setAuth({ accessToken, user });
 
         // If employee with restaurant_id, fetch restaurant data
