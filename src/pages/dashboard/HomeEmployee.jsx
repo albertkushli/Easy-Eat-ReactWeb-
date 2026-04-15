@@ -3,7 +3,7 @@ import { LogOut, Briefcase, QrCode, List, Settings, Clock, User, ChevronRight, T
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:1337';
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export default function HomeEmployee() {
   const { user, logout, role, token, restaurant } = useAuth();
@@ -15,11 +15,12 @@ export default function HomeEmployee() {
     async function fetchVisits() {
       if (!user.restaurant_id) { setLoading(false); return; }
       try {
-        const res = await axios.get(`${API_BASE}/visits?restaurant_id=${user.restaurant_id}`, {
+        const res = await axios.get(`${API_BASE}/restaurants/${user.restaurant_id}/visits`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (res.status === 200) {
-          const visitsData = Array.isArray(res.data) ? res.data : (res.data.data || []);
+          // The endpoint /restaurants/:id/visits returns { visits: [...] }
+          const visitsData = res.data.visits || [];
           setVisits(visitsData.sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt)).slice(0, 8));
         }
       } catch (err) {
@@ -36,11 +37,14 @@ export default function HomeEmployee() {
   const restCity = restaurant?.profile?.location?.city;
   const restAddress = restaurant?.profile?.location?.address;
 
-  if (loading) {
+  // Wait for both visits and restaurant data (if employee)
+  const isDataLoading = loading || ((role === 'owner' || role === 'staff') && !restaurant);
+
+  if (isDataLoading) {
     return (
       <div className="he-loading">
         <div className="he-loading__spinner" />
-        <p>Cargando panel…</p>
+        <p>Cargando panel de {isOwner ? 'Dueño' : 'Personal'}…</p>
       </div>
     );
   }

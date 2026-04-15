@@ -52,13 +52,43 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  // Initial Check
+  const isAuthenticated = Boolean(auth?.accessToken);
+  const role = auth?.user?.role ?? null;
+  const user = auth?.user ?? null;
+  const token = auth?.accessToken ?? null;
+
+  // Initial Check (silent refresh)
   useEffect(() => {
     const initAuth = async () => {
       await refreshSession();
     };
     initAuth();
   }, [refreshSession]);
+
+  // Fetch Restaurant Data if authenticated as employee
+  useEffect(() => {
+    async function fetchRestaurant() {
+      if ((role === 'owner' || role === 'staff') && user?.restaurant_id && !restaurant) {
+        try {
+          console.log('🔄 Fetching FULL restaurant data for:', user.restaurant_id);
+          const res = await axios.get(`${API_BASE}/restaurants/${user.restaurant_id}/full`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.status === 200) {
+            setRestaurant(res.data);
+            console.log('📍 Full restaurant data loaded:', res.data.profile?.name);
+          }
+        } catch (err) {
+          console.error('❌ Failed to load restaurant:', err);
+        }
+      }
+    }
+    
+    // Only fetch if we are not loading the initial session
+    if (!loading) {
+      fetchRestaurant();
+    }
+  }, [user?.restaurant_id, role, restaurant, loading]);
 
   const login = useCallback(async (email, password, userType = 'customer') => {
     try {
@@ -71,21 +101,7 @@ export function AuthProvider({ children }) {
         const userPayload = res.data.customer || res.data.employee || res.data.admin;
         const user = userPayload;
         setAuth({ accessToken, user });
-
-        // If employee with restaurant_id, fetch restaurant data
-        if (user.role === 'owner' || user.role === 'staff') {
-          if (user.restaurant_id) {
-            try {
-              const restRes = await axios.get(`${API_BASE}/restaurants/${user.restaurant_id}`);
-              if (restRes.status === 200) {
-                setRestaurant(restRes.data);
-                console.log('📍 Restaurant data loaded:', restRes.data.profile?.name);
-              }
-            } catch (err) {
-              console.error('Failed to load restaurant:', err);
-            }
-          }
-        }
+        // Restaurant data will be fetched by the useEffect above
 
         return { success: true };
       }
@@ -131,10 +147,6 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  const isAuthenticated = Boolean(auth?.accessToken);
-  const role = auth?.user?.role ?? null;
-  const user = auth?.user ?? null;
-  const token = auth?.accessToken ?? null;
 
   return (
     <AuthContext.Provider value={{

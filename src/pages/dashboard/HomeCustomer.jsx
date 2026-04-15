@@ -227,7 +227,7 @@ export default function HomeCustomer() {
               {badges.map((b, i) => (
                 <div key={i} className="hc-badge">
                   <div className="hc-badge__icon">{b.icon || '🏅'}</div>
-                  <span className="hc-badge__name">{b.name || `Badge ${i + 1}`}</span>
+                  <span className="hc-badge__name">{b.title || `Badge ${i + 1}`}</span>
                 </div>
               ))}
             </div>
