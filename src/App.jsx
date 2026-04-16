@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
+import Home from './pages/Home';
 import './App.css';
 
 // Protected Route component
@@ -33,6 +34,11 @@ function App() {
       <Router>
         <div className="App">
           <Routes>
+            <Route path="/" element={
+              <PublicRoute>
+                <Home />
+              </PublicRoute>
+            } />
             <Route path="/login" element={
               <PublicRoute>
                 <Login />
@@ -48,7 +54,6 @@ function App() {
                 <Dashboard />
               </ProtectedRoute>
             } />
-            <Route path="/" element={<Navigate to="/dashboard" />} />
           </Routes>
         </div>
       </Router>
