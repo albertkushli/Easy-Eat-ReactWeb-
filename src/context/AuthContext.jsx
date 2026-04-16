@@ -117,23 +117,20 @@ export function AuthProvider({ children }) {
 
   const register = useCallback(async (userData) => {
     try {
-      const res = await axios.post(`${API_BASE}/auth/customer/register`, userData, {
+      // 1. Create the customer using the existing backend endpoint
+      const res = await axios.post(`${API_BASE}/customers`, userData, {
         withCredentials: true
       });
 
       if (res.status === 201) {
-        // Auto-login functionality
-        const { accessToken, user } = res.data;
-        if (accessToken && user) {
-          setAuth({ accessToken, user });
-        }
-        return { success: true };
+        // 2. Perform auto-login using the credentials provided during registration
+        return await login(userData.email, userData.password, 'customer');
       }
     } catch (error) {
       console.error('Register error:', error);
       return { success: false, error: error.response?.data?.message || 'Registration failed' };
     }
-  }, []);
+  }, [login]);
 
   const logout = useCallback(async () => {
     try {
