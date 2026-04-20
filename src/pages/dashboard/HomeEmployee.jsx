@@ -4,24 +4,51 @@ import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
+const DEFAULT_META = { total: 0, page: 1, limit: 1, totalPages: 1 };
+
+function parsePaginatedVisitsResponse(payload, fallbackLimit = 8) {
+  if (Array.isArray(payload?.visits)) {
+    const visitsData = payload.visits;
+    return {
+      data: visitsData,
+      meta: { total: visitsData.length, page: 1, limit: fallbackLimit, totalPages: 1 }
+    };
+  }
+
+  const data = Array.isArray(payload?.data) ? payload.data : [];
+  const rawMeta = payload?.meta || {};
+  const total = Number.isFinite(rawMeta.total) ? rawMeta.total : data.length;
+  const page = Number.isFinite(rawMeta.page) ? rawMeta.page : 1;
+  const limit = Number.isFinite(rawMeta.limit) ? rawMeta.limit : fallbackLimit;
+  const totalPages = Number.isFinite(rawMeta.totalPages)
+    ? rawMeta.totalPages
+    : Math.max(1, Math.ceil(total / Math.max(1, limit)));
+
+  return { data, meta: { total, page, limit, totalPages } };
+}
 
 export default function HomeEmployee() {
   const { user, logout, role, token, restaurant } = useAuth();
   const [visits, setVisits] = useState([]);
+  const [visitsMeta, setVisitsMeta] = useState(DEFAULT_META);
+  const [visitsPage, setVisitsPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const isOwner = role === 'owner';
 
   useEffect(() => {
     async function fetchVisits() {
+      setLoading(true);
       if (!user.restaurant_id) { setLoading(false); return; }
       try {
+        const visitsLimit = 8;
         const res = await axios.get(`${API_BASE}/restaurants/${user.restaurant_id}/visits`, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
+          params: { page: visitsPage, limit: visitsLimit }
         });
         if (res.status === 200) {
-          // The endpoint /restaurants/:id/visits returns { visits: [...] }
-          const visitsData = res.data.visits || [];
-          setVisits(visitsData.sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt)).slice(0, 8));
+          const parsedVisits = parsePaginatedVisitsResponse(res.data, visitsLimit);
+          setVisits(parsedVisits.data.sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt)));
+          setVisitsMeta(parsedVisits.meta);
         }
       } catch (err) {
         console.error('Error fetching visits:', err);
@@ -30,7 +57,7 @@ export default function HomeEmployee() {
       }
     }
     fetchVisits();
-  }, [user.restaurant_id, token]);
+  }, [user.restaurant_id, token, visitsPage]);
 
   const restName = restaurant?.profile?.name || 'Tu restaurante';
   const restRating = restaurant?.profile?.globalRating;
@@ -148,7 +175,7 @@ export default function HomeEmployee() {
         <section className="he-section">
           <div className="he-section__head">
             <h2 className="he-section__title">Visitas recientes</h2>
-            <span className="he-section__count">{visits.length} registros</span>
+            <span className="he-section__count">{visits.length} de {visitsMeta.total} registros</span>
           </div>
           <div className="he-visits">
             {visits.length > 0 ? visits.map((v, i) => (
@@ -174,6 +201,27 @@ export default function HomeEmployee() {
                 <p>No hay visitas registradas todavía</p>
               </div>
             )}
+          </div>
+          <div className="he-pagination">
+            <button
+              type="button"
+              className="he-pagination__btn"
+              disabled={visitsMeta.page <= 1}
+              onClick={() => setVisitsPage(prev => Math.max(1, prev - 1))}
+            >
+              Anterior
+            </button>
+            <span className="he-pagination__info">
+              Página {visitsMeta.page} de {visitsMeta.totalPages}
+            </span>
+            <button
+              type="button"
+              className="he-pagination__btn"
+              disabled={visitsMeta.page >= visitsMeta.totalPages}
+              onClick={() => setVisitsPage(prev => Math.min(visitsMeta.totalPages, prev + 1))}
+            >
+              Siguiente
+            </button>
           </div>
         </section>
 
@@ -343,6 +391,31 @@ export default function HomeEmployee() {
           display: flex; flex-direction: column; align-items: center; gap: 0.75rem;
         }
         .he-empty p { font-size: 0.9rem; }
+
+        .he-pagination {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 0.75rem;
+          margin-top: 0.75rem;
+        }
+        .he-pagination__btn {
+          border: 1px solid var(--glass-border);
+          background: var(--glass-bg);
+          color: var(--clr-text);
+          padding: 0.45rem 0.9rem;
+          border-radius: 10px;
+          cursor: pointer;
+          font-size: 0.8rem;
+        }
+        .he-pagination__btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+        .he-pagination__info {
+          font-size: 0.8rem;
+          color: var(--clr-text-muted);
+        }
       `}</style>
     </div>
   );
