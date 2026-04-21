@@ -70,6 +70,8 @@ export default function PeakVisitHoursChart({ visits = [], restaurantId }) {
 
   return (
     <div style={{ width: '100%', height: 220 }}>
+              <h3>Horas de pico</h3>
+
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
