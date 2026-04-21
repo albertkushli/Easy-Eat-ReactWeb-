@@ -1,42 +1,33 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, Mail, Lock, Eye, EyeOff, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, AlertCircle, User, Check, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:1337';
-
-function getStrength(pwd) {
-  let score = 0;
-  if (!pwd) return -1;
-  if (pwd.length >= 8)  score++; // Required: 8+
-  if (/[A-Z]/.test(pwd)) score++; // Required: 1+ Uppercase
-  if (/[a-z]/.test(pwd)) score++;
-  if (/\d/.test(pwd)) score++;
-  if (/[^A-Za-z0-9]/.test(pwd)) score++;
-  return Math.min(score, 4); 
-}
-
-const strengthMeta = [
-  { label: 'Muy débil',  cls: 'active-weak' },
-  { label: 'Débil',      cls: 'active-weak' },
-  { label: 'Regular',    cls: 'active-fair' },
-  { label: 'Buena',      cls: 'active-good' },
-  { label: 'Fuerte 🔥',  cls: 'active-strong' },
-];
-
 export default function Register() {
+  const { register } = useAuth();
   const navigate = useNavigate();
-  const { login } = useAuth();
 
-  const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '' });
-  const [showPwd,     setShowPwd]     = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [agreed,      setAgreed]      = useState(false);
-  const [loading,     setLoading]     = useState(false);
-  const [error,       setError]       = useState('');
-  const [success,     setSuccess]     = useState(false);
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    confirmPassword: ''
+  });
+  
+  const [showPwd, setShowPwd] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const strength = form.password ? getStrength(form.password) : -1;
+  // Password validation rules
+  const rules = useMemo(() => {
+    return {
+      length: form.password.length >= 8,
+      uppercase: /[A-Z]/.test(form.password),
+      match: form.password !== '' && form.password === form.confirmPassword
+    };
+  }, [form.password, form.confirmPassword]);
+
+  const isValid = rules.length && rules.uppercase && rules.match && form.name && form.email;
 
   function handleChange(e) {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -46,26 +37,8 @@ export default function Register() {
   async function handleSubmit(e) {
     e.preventDefault();
 
-    if (!form.name || !form.email || !form.password || !form.confirm) {
-      setError('Por favor completa todos los campos.');
-      return;
-    }
-    if (form.password !== form.confirm) {
-      setError('Las contraseñas no coinciden.');
-      return;
-    }
-    if (form.password.length < 8) {
-      setError('La contraseña debe tener al menos 8 caracteres.');
-      setLoading(false);
-      return;
-    }
-    if (!/[A-Z]/.test(form.password)) {
-      setError('La contraseña debe contener al menos una letra mayúscula.');
-      setLoading(false);
-      return;
-    }
-    if (!agreed) {
-      setError('Debes aceptar los términos y condiciones.');
+    if (!isValid) {
+      setError('Por favor, completa correctamente todos los campos obligatorios.');
       return;
     }
 
@@ -73,37 +46,16 @@ export default function Register() {
     setError('');
 
     try {
-      // 1. Create account
-      const res  = await fetch(`${API_BASE}/customers`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ name: form.name, email: form.email, password: form.password }),
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.message ?? 'No se pudo crear la cuenta.');
-        setLoading(false);
-        return;
-      }
-
-      // 2. Auto-login
-      const loginRes = await fetch(`${API_BASE}/auth/customer/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email: form.email, password: form.password }),
+      const result = await register({
+        name: form.name,
+        email: form.email,
+        password: form.password
       });
 
-      if (loginRes.ok) {
-        const loginData = await loginRes.json();
-        login(loginData.accessToken, loginData.user);
-        setSuccess(true);
-        setTimeout(() => navigate('/dashboard'), 1500);
+      if (result.success) {
+        navigate('/dashboard');
       } else {
-        // If auto-login fails, redirect to manual login
-        setSuccess(true);
-        setTimeout(() => navigate('/login'), 2200);
+        setError(result.error);
       }
     } catch {
       setError('No se pudo conectar con el servidor. Inténtalo de nuevo.');
@@ -112,46 +64,34 @@ export default function Register() {
     }
   }
 
-  if (success) {
-    return (
-      <div className="auth-page">
-        <div className="auth-orb auth-orb--1" />
-        <div className="auth-orb auth-orb--2" />
-        <div className="auth-card glass-card" style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 64, marginBottom: 'var(--sp-md)' }}>🎉</div>
-          <h1 className="auth-title">¡Bienvenido, {form.name.split(' ')[0]}!</h1>
-          <p className="auth-subtitle">Preparando tu mesa personalizada...</p>
-          <div style={{ marginTop: 'var(--sp-lg)' }}>
-            <div className="strength-bar">
-              {[0,1,2,3].map(i => (
-                <div key={i} className={`strength-segment active-strong`} style={{ height: 6 }} />
-              ))}
-            </div>
-          </div>
-        </div>
+  // Component for checking rules visually
+  const RuleChecker = ({ isValid, label }) => (
+    <div className={`pwd-rule ${isValid ? 'valid' : ''}`}>
+      <div className="pwd-icon">
+        {isValid ? <Check size={10} strokeWidth={4} /> : <X size={10} strokeWidth={4} />}
       </div>
-    );
-  }
+      <span>{label}</span>
+    </div>
+  );
 
   return (
-    <div className="auth-page">
+    <div className="auth-page theme-customer">
       <div className="auth-orb auth-orb--1" />
       <div className="auth-orb auth-orb--2" />
-      <div className="auth-orb auth-orb--3" />
 
-      <div className="auth-card glass-card">
+      <div className="auth-card">
         <div className="brand">
           <div className="brand-icon">🍽️</div>
           <span className="brand-name">EasyEat</span>
-          <span className="brand-tagline">Tu experiencia gastronómica, simplificada</span>
+          <span className="brand-tagline">Únete a nuestra comunidad hoy mismo</span>
         </div>
 
-        <h1 className="auth-title">Crea tu cuenta</h1>
-        <p className="auth-subtitle">Únete y empieza a ganar puntos en cada visita</p>
+        <h1 className="auth-title">Crear nueva cuenta</h1>
+        <p className="auth-subtitle">Rellena tus datos y empieza a disfrutar</p>
 
         {error && (
-          <div className="alert alert--error" role="alert">
-            <AlertCircle size={16} />
+          <div className="alert--error" role="alert">
+            <AlertCircle size={17} />
             <span>{error}</span>
           </div>
         )}
@@ -160,13 +100,13 @@ export default function Register() {
           <div className="form-group">
             <label className="form-label" htmlFor="register-name">Nombre completo</label>
             <div className="input-wrapper">
-              <User className="input-icon" size={17} />
+              <User className="input-icon" size={18} />
               <input
                 id="register-name"
                 className="form-input"
                 type="text"
                 name="name"
-                placeholder="Nombre Apellido"
+                placeholder="Ej. Juan Pérez"
                 value={form.name}
                 onChange={handleChange}
                 autoComplete="name"
@@ -178,7 +118,7 @@ export default function Register() {
           <div className="form-group">
             <label className="form-label" htmlFor="register-email">Correo electrónico</label>
             <div className="input-wrapper">
-              <Mail className="input-icon" size={17} />
+              <Mail className="input-icon" size={18} />
               <input
                 id="register-email"
                 className="form-input"
@@ -192,76 +132,72 @@ export default function Register() {
             </div>
           </div>
 
-          <div className="form-group">
+          <div className="form-group" style={{ marginBottom: "0.5rem" }}>
             <label className="form-label" htmlFor="register-password">Contraseña</label>
             <div className="input-wrapper">
-              <Lock className="input-icon" size={17} />
+              <Lock className="input-icon" size={18} />
               <input
                 id="register-password"
                 className="form-input"
                 type={showPwd ? 'text' : 'password'}
                 name="password"
-                placeholder="Mínimo 6 caracteres"
+                placeholder="••••••••"
                 value={form.password}
                 onChange={handleChange}
                 autoComplete="new-password"
               />
-              <button type="button" className="input-icon-right" onClick={() => setShowPwd(v => !v)}>
-                {showPwd ? <EyeOff size={17} /> : <Eye size={17} />}
+              <button 
+                type="button" 
+                className="input-icon-right" 
+                onClick={() => setShowPwd(v => !v)}
+              >
+                {showPwd ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
-            {form.password.length > 0 && (
-              <>
-                <div className="strength-bar">
-                  {[1, 2, 3, 4].map(i => (
-                    <div key={i} className={`strength-segment ${i <= strength ? strengthMeta[strength].cls : ''}`} />
-                  ))}
-                </div>
-                <span className="strength-label">{strengthMeta[strength]?.label}</span>
-              </>
-            )}
+          </div>
+
+          {/* Password Checker */}
+          <div className="pwd-tracker" style={{ marginBottom: "1.25rem" }}>
+            <RuleChecker isValid={rules.length} label="Mínimo 8 caracteres de longitud" />
+            <RuleChecker isValid={rules.uppercase} label="Incluye al menos una letra mayúscula" />
           </div>
 
           <div className="form-group">
-            <label className="form-label" htmlFor="register-confirm">Confirmar contraseña</label>
+            <label className="form-label" htmlFor="register-confirm-password">Confirmar contraseña</label>
             <div className="input-wrapper">
-              <Lock className="input-icon" size={17} />
+              <Lock className="input-icon" size={18} />
               <input
-                id="register-confirm"
-                className={`form-input${form.confirm && form.confirm !== form.password ? ' input--error' : ''}`}
-                type={showConfirm ? 'text' : 'password'}
-                name="confirm"
-                placeholder="Repite tu contraseña"
-                value={form.confirm}
+                id="register-confirm-password"
+                className="form-input"
+                type="password"
+                name="confirmPassword"
+                placeholder="••••••••"
+                value={form.confirmPassword}
                 onChange={handleChange}
                 autoComplete="new-password"
               />
-              <button type="button" className="input-icon-right" onClick={() => setShowConfirm(v => !v)}>
-                {showConfirm ? <EyeOff size={17} /> : <Eye size={17} />}
-              </button>
             </div>
           </div>
+          
+          {/* Match Rule dynamically shown below confirm password */}
+          {form.confirmPassword && (
+             <div className="pwd-tracker" style={{ marginTop: "-0.75rem", marginBottom: "1.25rem" }}>
+               <RuleChecker isValid={rules.match} label="Las contraseñas coinciden perfectamente" />
+             </div>
+          )}
 
-          <label className="checkbox-row">
-            <div
-              className={`checkbox-custom${agreed ? ' checked' : ''}`}
-              onClick={() => setAgreed(v => !v)}
-              role="checkbox"
-              aria-checked={agreed}
-              tabIndex={0}
-            >
-              {agreed && <CheckCircle2 size={12} color="hsl(20,80%,10%)" />}
-            </div>
-            <span>Acepto los <Link to="/terms" className="auth-link">términos y condiciones</Link></span>
-          </label>
-
-          <button id="register-submit-btn" type="submit" className="btn btn--primary" disabled={loading}>
-            {loading ? <><span className="btn-spinner" /> Creando cuenta…</> : 'Crear cuenta gratis'}
+          <button 
+            type="submit" 
+            className="btn btn--primary" 
+            disabled={loading || !isValid}
+            style={{ marginTop: "1rem" }}
+          >
+            {loading ? 'Creando cuenta…' : 'Finalizar Registro'}
           </button>
         </form>
 
         <div className="auth-footer">
-          ¿Ya tienes cuenta? <Link to="/login" className="auth-link">Inicia sesión</Link>
+          ¿Ya tienes cuenta? <Link to="/login" className="auth-link">Inicia sesión en su lugar</Link>
         </div>
       </div>
     </div>
